@@ -65,6 +65,9 @@ func set_shadow(size: Vector2) -> void:
 
 
 func set_visual_from_path(path: String, scale_amount: Vector2, offset := Vector2(0, -34)) -> void:
+	if path == "":
+		return
+
 	var texture := _load_texture(path)
 	if texture == null:
 		return

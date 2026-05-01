@@ -17,6 +17,7 @@ var hud_panel: PanelContainer
 var hud_label: Label
 var prompt_label: Label
 var order_label: Label
+var objective_label: Label
 var prompt_panel: PanelContainer
 var pause_panel: PanelContainer
 var summary_panel: PanelContainer
@@ -71,7 +72,7 @@ func _build_ui() -> void:
 
 	hud_panel = PanelContainer.new()
 	hud_panel.position = Vector2(16, 16)
-	hud_panel.size = Vector2(290, 74)
+	hud_panel.size = Vector2(340, 104)
 	hud_panel.add_theme_stylebox_override("panel", _make_overlay_style(Color(0.07, 0.06, 0.09, 0.74)))
 	hud_layer.add_child(hud_panel)
 
@@ -96,6 +97,16 @@ func _build_ui() -> void:
 	order_label.add_theme_constant_override("shadow_offset_x", 2)
 	order_label.add_theme_constant_override("shadow_offset_y", 2)
 	hud_margin.add_child(order_label)
+
+	objective_label = Label.new()
+	objective_label.position = Vector2(0, 48)
+	objective_label.size = Vector2(312, 42)
+	objective_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	objective_label.add_theme_color_override("font_color", Color("#cfe8ff"))
+	objective_label.add_theme_color_override("font_shadow_color", Color.BLACK)
+	objective_label.add_theme_constant_override("shadow_offset_x", 2)
+	objective_label.add_theme_constant_override("shadow_offset_y", 2)
+	hud_margin.add_child(objective_label)
 
 	prompt_panel = PanelContainer.new()
 	prompt_panel.position = Vector2(250, 586)
@@ -125,8 +136,8 @@ func _build_ui() -> void:
 
 func _make_center_panel(text: String) -> PanelContainer:
 	var panel := PanelContainer.new()
-	panel.position = Vector2(370, 205)
-	panel.size = Vector2(430, 210)
+	panel.position = Vector2(360, 188)
+	panel.size = Vector2(450, 252)
 	panel.add_theme_stylebox_override("panel", _make_overlay_style(Color(0.10, 0.08, 0.12, 0.92)))
 	var margin := MarginContainer.new()
 	margin.name = "Margin"
@@ -206,7 +217,8 @@ func _on_day_finished(stats: Dictionary) -> void:
 	mode = "day_summary"
 	_set_paused(false)
 	var result_text := "达标" if int(stats.revenue) >= int(stats.target) else "未达标"
-	summary_label.text = "第 %d 夜收工：%s\n收入：%d / 目标：%d\n接待：%d  错过：%d\n正确出餐：%d  错餐：%d\n\n按 E 进入下一夜" % [
+	var special_text := "完成" if bool(stats.special_completed) else "未完成"
+	summary_label.text = "第 %d 夜收工：%s\n收入：%d / 目标：%d\n接待：%d  错过：%d\n正确出餐：%d  错餐：%d\n特别请求：%s\n\n按 E 进入下一夜" % [
 		night,
 		result_text,
 		stats.revenue,
@@ -214,7 +226,8 @@ func _on_day_finished(stats: Dictionary) -> void:
 		stats.served,
 		stats.missed,
 		stats.correct,
-		stats.wrong
+		stats.wrong,
+		special_text
 	]
 	summary_panel.visible = true
 
@@ -250,8 +263,10 @@ func _update_ui() -> void:
 
 	if mode == "shop_open" and shop_status.has("waiting"):
 		order_label.text = "等待 %d  手上：%s" % [shop_status.waiting, shop_status.held]
+		objective_label.text = str(shop_status.objective)
 	else:
 		order_label.text = "温泉街：找到夜樱拉面馆开始营业"
+		objective_label.text = ""
 
 	if current_scene != null and current_scene.has_method("get_prompt") and not paused and mode != "day_summary":
 		prompt_label.text = current_scene.get_prompt()

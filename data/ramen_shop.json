@@ -13,5 +13,10 @@
     "day_length_seconds": 150,
     "customer_spawn_interval": 9,
     "target_revenue": 90
-  }
+  },
+  "night_configs": [
+    { "night": 1, "day_length_seconds": 120, "customer_spawn_interval": 10, "target_revenue": 80 },
+    { "night": 2, "day_length_seconds": 145, "customer_spawn_interval": 8, "target_revenue": 110 },
+    { "night": 3, "day_length_seconds": 165, "customer_spawn_interval": 6, "target_revenue": 145 }
+  ]
 }

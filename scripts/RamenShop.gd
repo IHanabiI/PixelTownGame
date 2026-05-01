@@ -31,12 +31,17 @@ var missed_count := 0
 var revenue := 0
 var correct_count := 0
 var wrong_count := 0
+var target_revenue := 90
+var spawn_interval := 9.0
+var day_length := 150.0
 var selected_menu_index := 0
 var held_order := {}
 var cooking_order := {}
 var cooking_left := 0.0
 var special_completed := false
 var shop_closed := false
+var feedback_text := ""
+var feedback_timer := 0.0
 
 var broth_zone := Rect2(150, 470, 210, 82)
 var topping_zone := Rect2(414, 470, 220, 82)
@@ -67,6 +72,11 @@ func _process(delta: float) -> void:
 
 	day_timer += delta
 	spawn_timer += delta
+	if feedback_timer > 0.0:
+		feedback_timer -= delta
+		if feedback_timer <= 0.0:
+			feedback_text = ""
+
 	if cooking_left > 0.0:
 		cooking_left -= delta
 		if cooking_left <= 0.0:
@@ -74,7 +84,7 @@ func _process(delta: float) -> void:
 			cooking_order = {}
 			cooking_left = 0.0
 
-	if spawn_timer >= float(day_config.get("customer_spawn_interval", 8.0)):
+	if spawn_timer >= spawn_interval:
 		spawn_timer = 0.0
 		_spawn_customer()
 
@@ -86,7 +96,7 @@ func _process(delta: float) -> void:
 		if customer["wait_left"] <= 0.0:
 			_miss_customer(customer)
 
-	if day_timer >= float(day_config.get("day_length_seconds", 150.0)):
+	if day_timer >= day_length:
 		_finish_day()
 
 	queue_redraw()
@@ -126,13 +136,14 @@ func get_prompt() -> String:
 
 func get_status() -> Dictionary:
 	return {
-		"time_left": max(0, int(float(day_config.get("day_length_seconds", 150.0)) - day_timer)),
+		"time_left": max(0, int(day_length - day_timer)),
 		"served": served_count,
 		"missed": missed_count,
 		"waiting": customers.size(),
 		"revenue": revenue,
 		"held": str(held_order.get("name", "无")) if not held_order.is_empty() else ("制作中" if cooking_left > 0.0 else "无"),
-		"selected": _selected_menu_name()
+		"selected": _selected_menu_name(),
+		"objective": _objective_text()
 	}
 
 
@@ -143,11 +154,18 @@ func _load_data() -> void:
 		menu_items = parsed.get("menu_items", [])
 		customer_types = parsed.get("customer_types", [])
 		day_config = parsed.get("day_config", {})
+		for config in parsed.get("night_configs", []):
+			if int(config.get("night", 0)) == night:
+				day_config = config
+				break
 
 	if menu_items.is_empty():
 		menu_items = [{"name": "酱油拉面", "price": 12}]
 	if customer_types.is_empty():
 		customer_types = [{"name": "旅人", "patience": 28, "sprite": DEFAULT_CUSTOMER_PATHS[0]}]
+	day_length = float(day_config.get("day_length_seconds", 150.0))
+	spawn_interval = float(day_config.get("customer_spawn_interval", 9.0))
+	target_revenue = int(day_config.get("target_revenue", 90))
 
 
 func _create_background_sprite() -> void:
@@ -176,15 +194,15 @@ func _create_counter_assets() -> void:
 		bowl.texture = texture
 		bowl.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 		bowl.centered = true
-		bowl.scale = Vector2(0.26, 0.26)
-		bowl.position = Vector2(220 + i * 82, 452)
+		bowl.scale = Vector2(0.36, 0.36)
+		bowl.position = Vector2(220 + i * 86, 452)
 		bowl.z_index = 5
 		bowl_sprites.append(bowl)
 		add_child(bowl)
 
 	_update_bowl_highlight()
-	_add_small_prop(ORDER_ICON_PATH, Vector2(720, 422), Vector2(0.28, 0.28), 4)
-	_add_small_prop(COIN_ICON_PATH, Vector2(1008, 30), Vector2(0.20, 0.20), 30)
+	_add_small_prop(ORDER_ICON_PATH, Vector2(720, 422), Vector2(0.34, 0.34), 4)
+	_add_small_prop(COIN_ICON_PATH, Vector2(1010, 28), Vector2(0.26, 0.26), 30)
 
 
 func _add_small_prop(path: String, pos: Vector2, scale_amount: Vector2, z: int) -> void:
@@ -336,11 +354,15 @@ func _serve_matching_customer() -> void:
 	if not correct:
 		price = maxi(4, int(price / 2))
 		wrong_count += 1
+		_set_feedback("错餐，只收回 %d 金币" % price)
 	else:
 		correct_count += 1
 		if _matches_special(customer, held_order):
 			price += int(special_request.get("bonus", 0))
 			special_completed = true
+			_set_feedback("特别请求完成！+%d 金币" % int(special_request.get("bonus", 0)))
+		else:
+			_set_feedback("出餐正确 +%d 金币" % price)
 
 	revenue += price
 	served_count += 1
@@ -383,9 +405,10 @@ func _finish_day() -> void:
 		"revenue": revenue,
 		"served": served_count,
 		"missed": missed_count,
-		"target": int(day_config.get("target_revenue", 90)) + (night - 1) * 20,
+		"target": target_revenue,
 		"correct": correct_count,
-		"wrong": wrong_count
+		"wrong": wrong_count,
+		"special_completed": special_completed
 	})
 
 
@@ -398,6 +421,22 @@ func _selected_menu_name() -> String:
 func _update_bowl_highlight() -> void:
 	for i in bowl_sprites.size():
 		bowl_sprites[i].modulate = Color.WHITE if i == selected_menu_index else Color(0.72, 0.72, 0.72, 0.82)
+
+
+func _set_feedback(text: String) -> void:
+	feedback_text = text
+	feedback_timer = 2.2
+
+
+func _objective_text() -> String:
+	var text := "目标 %d 金币" % target_revenue
+	if street_info.has("hint"):
+		text += "  |  " + str(street_info.hint)
+	if not special_request.is_empty():
+		text += "  |  请求：" + str(special_request.get("text", ""))
+		if special_completed:
+			text += " 完成"
+	return text
 
 
 func _draw() -> void:
@@ -423,3 +462,6 @@ func _draw() -> void:
 		draw_string(ThemeDB.fallback_font, Vector2(692, 432), "手上：" + str(held_order.get("name", "拉面")), HORIZONTAL_ALIGNMENT_LEFT, 260, 15, Color("#ffffff"))
 	elif cooking_left > 0.0:
 		draw_string(ThemeDB.fallback_font, Vector2(414, 432), "制作中 %.1f" % cooking_left, HORIZONTAL_ALIGNMENT_LEFT, 180, 15, Color("#ffffff"))
+	if feedback_text != "":
+		draw_rect(Rect2(428, 384, 302, 28), Color(0.06, 0.05, 0.08, 0.76))
+		draw_string(ThemeDB.fallback_font, Vector2(446, 403), feedback_text, HORIZONTAL_ALIGNMENT_LEFT, 268, 16, Color("#ffe08a"))

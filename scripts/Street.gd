@@ -26,6 +26,8 @@ var special_request := {}
 var street_npcs: Array[PixelNpc] = []
 var notice_zone := Rect2(540, 432, 92, 96)
 var npc_lines := []
+var active_dialogue := ""
+var dialogue_timer := 0.0
 
 
 func configure(value: int) -> void:
@@ -65,6 +67,10 @@ func _ready() -> void:
 
 func _process(delta: float) -> void:
 	time += delta
+	if dialogue_timer > 0.0:
+		dialogue_timer -= delta
+		if dialogue_timer <= 0.0:
+			active_dialogue = ""
 	for petal in petals:
 		petal.pos += petal.vel * delta
 		petal.pos.x += sin(time * petal.sway + petal.phase) * 10.0 * delta
@@ -74,16 +80,29 @@ func _process(delta: float) -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
-	if event.is_action_pressed("interact") and door_zone.has_point(player.global_position):
+	if not event.is_action_pressed("interact"):
+		return
+
+	if door_zone.has_point(player.global_position):
 		enter_shop_requested.emit({
 			"hint": selected_hint,
 			"crowd_focus": crowd_focus,
 			"special_request": special_request,
 			"night": night
 		})
+		return
+
+	for i in street_npcs.size():
+		if player.global_position.distance_to(street_npcs[i].global_position) < 70.0:
+			active_dialogue = "%s：%s" % [street_npcs[i].display_name, npc_lines[i]]
+			dialogue_timer = 4.0
+			return
 
 
 func get_prompt() -> String:
+	if active_dialogue != "":
+		return active_dialogue
+
 	if door_zone.has_point(player.global_position):
 		return "按 E 进入夜樱拉面  |  " + selected_hint
 
@@ -92,7 +111,7 @@ func get_prompt() -> String:
 
 	for i in street_npcs.size():
 		if player.global_position.distance_to(street_npcs[i].global_position) < 70.0:
-			return npc_lines[i]
+			return "按 E 交谈：" + street_npcs[i].display_name
 
 	return "沿着街道走到左侧的拉面馆门口开门营业"
 
@@ -112,10 +131,10 @@ func _create_background_sprite() -> void:
 
 
 func _create_street_props() -> void:
-	_add_prop(EXTERIOR_PATH, Vector2(52, 310), Vector2(0.72, 0.72), -8)
-	_add_prop(VENDING_PATH, Vector2(880, 406), Vector2(0.35, 0.35), -4)
-	_add_prop(TREE_PATH, Vector2(960, 274), Vector2(0.72, 0.72), -12)
-	_add_prop(LANTERN_PATH, Vector2(402, 328), Vector2(0.42, 0.42), -6)
+	_add_prop(EXTERIOR_PATH, Vector2(42, 326), Vector2(0.52, 0.52), -8)
+	_add_prop(VENDING_PATH, Vector2(878, 390), Vector2(0.48, 0.48), -4)
+	_add_prop(TREE_PATH, Vector2(940, 290), Vector2(0.70, 0.70), -12)
+	_add_prop(LANTERN_PATH, Vector2(402, 330), Vector2(0.48, 0.48), -6)
 
 
 func _add_prop(path: String, pos: Vector2, scale_amount: Vector2, z: int) -> void:
