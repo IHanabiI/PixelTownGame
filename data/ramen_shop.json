@@ -1,0 +1,17 @@
+{
+  "menu_items": [
+    { "name": "酱油拉面", "price": 12, "make_seconds": 2 },
+    { "name": "味噌拉面", "price": 14, "make_seconds": 2 },
+    { "name": "温泉蛋拉面", "price": 16, "make_seconds": 3 }
+  ],
+  "customer_types": [
+    { "name": "旅人", "patience": 34, "color": "#7a4d91", "sprite": "res://assets/generated/sprites/customer_green.png" },
+    { "name": "常客", "patience": 42, "color": "#3f6f60", "sprite": "res://assets/generated/sprites/customer_kimono.png" },
+    { "name": "上班族", "patience": 28, "color": "#415a86", "sprite": "res://assets/generated/sprites/customer_blue.png" }
+  ],
+  "day_config": {
+    "day_length_seconds": 150,
+    "customer_spawn_interval": 9,
+    "target_revenue": 90
+  }
+}
