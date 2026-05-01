@@ -5,10 +5,12 @@ const SHOP_SCENE := preload("res://scenes/RamenShop.tscn")
 
 var current_scene: Node
 var mode := "street"
+var night := 1
 var money := 0
 var served := 0
 var missed := 0
 var paused := false
+var street_info := {}
 
 var hud_layer: CanvasLayer
 var hud_panel: PanelContainer
@@ -163,15 +165,20 @@ func _switch_to_street() -> void:
 	_clear_current_scene()
 	mode = "street"
 	current_scene = STREET_SCENE.instantiate()
+	if current_scene.has_method("configure"):
+		current_scene.configure(night)
 	add_child(current_scene)
 	move_child(hud_layer, get_child_count() - 1)
 	current_scene.enter_shop_requested.connect(_switch_to_shop)
 
 
-func _switch_to_shop() -> void:
+func _switch_to_shop(info := {}) -> void:
+	street_info = info
 	_clear_current_scene()
 	mode = "shop_open"
 	current_scene = SHOP_SCENE.instantiate()
+	if current_scene.has_method("configure"):
+		current_scene.configure(night, street_info)
 	add_child(current_scene)
 	move_child(hud_layer, get_child_count() - 1)
 	current_scene.exit_shop_requested.connect(_switch_to_street)
@@ -198,19 +205,28 @@ func _on_customer_missed() -> void:
 func _on_day_finished(stats: Dictionary) -> void:
 	mode = "day_summary"
 	_set_paused(false)
-	summary_label.text = "今日收工\n收入：%d / 目标：%d\n接待：%d  错过：%d\n\n按 E 再开一天" % [
+	var result_text := "达标" if int(stats.revenue) >= int(stats.target) else "未达标"
+	summary_label.text = "第 %d 夜收工：%s\n收入：%d / 目标：%d\n接待：%d  错过：%d\n正确出餐：%d  错餐：%d\n\n按 E 进入下一夜" % [
+		night,
+		result_text,
 		stats.revenue,
 		stats.target,
 		stats.served,
-		stats.missed
+		stats.missed,
+		stats.correct,
+		stats.wrong
 	]
 	summary_panel.visible = true
 
 
 func _restart_day() -> void:
+	night += 1
+	if night > 3:
+		night = 1
 	money = 0
 	served = 0
 	missed = 0
+	street_info = {}
 	summary_panel.visible = false
 	_switch_to_street()
 
@@ -230,10 +246,10 @@ func _update_ui() -> void:
 	if shop_status.has("time_left"):
 		time_text = "  剩余 %02d:%02d" % [floori(int(shop_status.time_left) / 60.0), int(shop_status.time_left) % 60]
 
-	hud_label.text = "金币 %d  接待 %d  错过 %d%s" % [money, served, missed, time_text]
+	hud_label.text = "第 %d 夜  金币 %d  接待 %d  错过 %d%s" % [night, money, served, missed, time_text]
 
 	if mode == "shop_open" and shop_status.has("waiting"):
-		order_label.text = "等待客人：%d" % shop_status.waiting
+		order_label.text = "等待 %d  手上：%s" % [shop_status.waiting, shop_status.held]
 	else:
 		order_label.text = "温泉街：找到夜樱拉面馆开始营业"
 

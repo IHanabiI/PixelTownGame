@@ -1,10 +1,14 @@
 extends Node2D
 
-signal enter_shop_requested
+signal enter_shop_requested(info: Dictionary)
 
 const VIEW_SIZE := Vector2(1152, 648)
 const STREET_BG_PATH := "res://assets/generated/street_background_v2.png"
 const PLAYER_STREET_PATH := "res://assets/generated/sprites/customer_blue.png"
+const EXTERIOR_PATH := "res://assets/generated/sprites/ramen_shop_exterior.png"
+const VENDING_PATH := "res://assets/generated/sprites/vending_machine.png"
+const TREE_PATH := "res://assets/generated/sprites/sakura_tree.png"
+const LANTERN_PATH := "res://assets/generated/sprites/lantern_set.png"
 const NPC_PATHS := [
 	"res://assets/generated/sprites/customer_green.png",
 	"res://assets/generated/sprites/customer_kimono.png",
@@ -15,17 +19,44 @@ var player: Player
 var door_zone := Rect2(92, 390, 88, 118)
 var petals: Array[Dictionary] = []
 var time := 0.0
+var night := 1
+var selected_hint := ""
+var crowd_focus := "traveler"
+var special_request := {}
 var street_npcs: Array[PixelNpc] = []
-var npc_lines := [
-	"今晚开张的话，第一碗记得给常客留着。",
-	"樱花季的时候，拉面香味会飘满整条街。",
-	"去店里吧，已经有人在等夜宵了。"
-]
+var notice_zone := Rect2(540, 432, 92, 96)
+var npc_lines := []
+
+
+func configure(value: int) -> void:
+	night = value
+	var hint_pool := [
+		"今晚温泉旅人多，温泉蛋拉面会更受欢迎。",
+		"附近会社刚下班，上班族会急着吃酱油拉面。",
+		"老街常客会来捧场，味噌拉面最稳。"
+	]
+	var focus_pool := ["traveler", "worker", "regular"]
+	selected_hint = hint_pool[(night - 1) % hint_pool.size()]
+	crowd_focus = focus_pool[(night - 1) % focus_pool.size()]
+	special_request = {
+		"customer_id": "regular",
+		"dish_id": "miso",
+		"bonus": 18,
+		"text": "常客真琴今晚想吃一碗味噌拉面。"
+	}
+	npc_lines = [
+		special_request.text,
+		selected_hint,
+		"准备好了就去左侧夜樱拉面开门。"
+	]
 
 
 func _ready() -> void:
 	z_index = 0
+	if npc_lines.is_empty():
+		configure(night)
 	_create_background_sprite()
+	_create_street_props()
 	_create_player()
 	_create_camera()
 	_create_town_npcs()
@@ -44,12 +75,20 @@ func _process(delta: float) -> void:
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("interact") and door_zone.has_point(player.global_position):
-		enter_shop_requested.emit()
+		enter_shop_requested.emit({
+			"hint": selected_hint,
+			"crowd_focus": crowd_focus,
+			"special_request": special_request,
+			"night": night
+		})
 
 
 func get_prompt() -> String:
 	if door_zone.has_point(player.global_position):
-		return "按 E 进入夜樱拉面"
+		return "按 E 进入夜樱拉面  |  " + selected_hint
+
+	if notice_zone.has_point(player.global_position):
+		return "公告牌：" + selected_hint
 
 	for i in street_npcs.size():
 		if player.global_position.distance_to(street_npcs[i].global_position) < 70.0:
@@ -70,6 +109,28 @@ func _create_background_sprite() -> void:
 	bg.position = Vector2.ZERO
 	bg.z_index = -20
 	add_child(bg)
+
+
+func _create_street_props() -> void:
+	_add_prop(EXTERIOR_PATH, Vector2(52, 310), Vector2(0.72, 0.72), -8)
+	_add_prop(VENDING_PATH, Vector2(880, 406), Vector2(0.35, 0.35), -4)
+	_add_prop(TREE_PATH, Vector2(960, 274), Vector2(0.72, 0.72), -12)
+	_add_prop(LANTERN_PATH, Vector2(402, 328), Vector2(0.42, 0.42), -6)
+
+
+func _add_prop(path: String, pos: Vector2, scale_amount: Vector2, z: int) -> void:
+	var texture := _load_texture(path)
+	if texture == null:
+		return
+
+	var sprite := Sprite2D.new()
+	sprite.texture = texture
+	sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	sprite.centered = false
+	sprite.position = pos
+	sprite.scale = scale_amount
+	sprite.z_index = z
+	add_child(sprite)
 
 
 func _create_player() -> void:
@@ -134,6 +195,8 @@ func _draw() -> void:
 	draw_rect(Rect2(0, 588, VIEW_SIZE.x, 60), Color(0.05, 0.04, 0.08, 0.18))
 	draw_rect(door_zone, Color(1.0, 0.88, 0.53, 0.12))
 	draw_rect(Rect2(door_zone.position + Vector2(4, 4), door_zone.size - Vector2(8, 8)), Color(1.0, 0.75, 0.36, 0.08))
+	draw_rect(notice_zone, Color("#d8c09c", 0.10))
+	draw_string(ThemeDB.fallback_font, notice_zone.position + Vector2(8, 26), "公告", HORIZONTAL_ALIGNMENT_LEFT, 70, 16, Color("#fff7df"))
 
 	for petal in petals:
 		draw_rect(Rect2(petal.pos, Vector2(petal.size, petal.size * 0.65)), Color("#ffc0d3", 0.95))
